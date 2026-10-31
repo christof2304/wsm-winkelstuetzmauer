@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8" /><title>WSM Tests</title>
+<script type="importmap">{ "imports": { "preact": "https://cdn.jsdelivr.net/npm/preact@10.24.3/+esm", "preact/hooks": "https://cdn.jsdelivr.net/npm/preact@10.24.3/hooks/+esm", "htm": "https://cdn.jsdelivr.net/npm/htm@3.1.1/+esm" } }</script>
+<style>body{font:13px/1.5 system-ui;margin:24px;background:#fff;color:#111}.ok{color:#08703f}.fail{color:#b3261e;font-weight:600}td{padding:2px 10px}</style>
+</head><body><h1>WSM – Tests</h1><table id="out"></table><p id="sum"></p>
+<script type="module">
+import { kaCoulomb } from '../packages/soil/earth.js';
+import { bearingFactors } from '../packages/soil/bearing.js';
+import { analyze } from '../apps/wsm/analyze.js';
+import { DEFAULT_MODEL, setPath } from '../apps/wsm/model.js';
+const res = [];
+const t = (name, fn) => { try { const r = fn(); res.push([name, r === true || r === undefined, r === true || r === undefined ? '' : String(r)]); } catch (e) { res.push([name, false, e.message]); } };
+const near = (a, b, tol) => Math.abs(a - b) <= tol || `${a.toFixed(4)} ≠ ${b} ± ${tol}`;
+const inPoly = (x, y, P) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, yi] = P[i], [xj, yj] = P[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c; } return c; };
+
+t('Ka φ=32,5°, δ=β=0', () => near(kaCoulomb(32.5, 0).Ka, 0.3011, 0.0005));
+t('Kah φ=30°, δ=20°', () => near(kaCoulomb(30, 20).Kah, 0.2794, 0.0010));
+t('DIN 4017 φ=30°: Nd0', () => near(bearingFactors(30).Nd0, 18.4, 0.1));
+t('DIN 4017 φ=30°: Nb0', () => near(bearingFactors(30).Nb0, 10.0, 0.1));
+t('DIN 4017 φ=30°: Nc0', () => near(bearingFactors(30).Nc0, 30.1, 0.1));
+
+const base = analyze(DEFAULT_MODEL);
+t('Referenzbeispiel rechnet', () => base.ok || base.error);
+t('Gleichgewicht: e = B/2 − M/V', () => {
+  const B = base.ext.g.B;
+  for (const c of base.ext.combos) { const r = near(c.k.e, B / 2 - c.k.M / c.k.V, 1e-6); if (r !== true) return `${c.label}: ${r}`; }
+  return true;
+});
+const mono = (path, vals, ids) => {
+  let prev = null;
+  for (const v of vals) {
+    const r = analyze(setPath(DEFAULT_MODEL, path, v)); if (!r.ok) return `${path}=${v}: ${r.error}`;
+    const eta = Object.fromEntries(r.checks.map((c) => [c.id, c.eta])); eta.MEd = r.int.wallSec.at(-1).MEd;
+    if (prev) for (const id of ids) if (eta[id] < prev[id] - 1e-9) return `${id} fällt bei ${path}=${v}`;
+    prev = eta;
+  }
+  return true;
+};
+t('η und M_Ed,Wand steigen mit h_W', () => mono('wall.hw', [2, 2.5, 3, 3.5, 4], ['equ', 'sliding', 'bearing', 'MEd']));
+t('η und M_Ed,Wand steigen mit q', () => mono('loads.q', [0, 5, 10, 20, 30], ['equ', 'sliding', 'bearing', 'MEd']));
+t('Längerer Bergsporn verbessert Gleiten/Kippen', () => {
+  const a = analyze(setPath(DEFAULT_MODEL, 'wall.bh', 1.2)), b = analyze(setPath(DEFAULT_MODEL, 'wall.bh', 2.0));
+  const e = (r, id) => r.checks.find((c) => c.id === id).eta;
+  return (e(b, 'sliding') < e(a, 'sliding') && e(b, 'equ') < e(a, 'equ')) || 'nicht monoton';
+});
+for (const hw of [1.5, 3, 5]) t(`Stäbe innerhalb Beton (h_W = ${hw} m)`, () => {
+  const r = analyze(setPath(DEFAULT_MODEL, 'wall.hw', hw)); if (!r.ok) return r.error;
+  const g = r.ext.g;
+  for (const b of r.layout.bars) for (const [x, y] of b.pts) if (!inPoly(x, y, g.footing) && !inPoly(x, y, g.wall)) return `Pos ${b.id} Punkt (${x.toFixed(3)}, ${y.toFixed(3)}) außerhalb`;
+  for (const d of r.layout.dots) if (!inPoly(d.x, d.y, g.footing) && !inPoly(d.x, d.y, g.wall)) return `Punkt Pos ${d.id} außerhalb`;
+  return true;
+});
+
+document.getElementById('out').innerHTML = res.map(([n, ok, msg]) => `<tr><td class="${ok ? 'ok' : 'fail'}">${ok ? '✓' : '✕'}</td><td>${n}</td><td>${msg}</td></tr>`).join('');
+const nf = res.filter((r) => !r[1]).length;
+document.getElementById('sum').textContent = `${res.length - nf}/${res.length} bestanden`;
+window.__results = res;
+</script></body></html>
