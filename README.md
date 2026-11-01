@@ -41,3 +41,9 @@ tests/           Browser-Tests
 Mehrere Bodenschichten, Grundwasser, Gegengleitfläche, Verdichtungs- und Ruhedruck, Erdwiderstand, weitere Lastarten, Geländebruch (Bishop), Setzung, Startassistent, weitere Normprofile.
 
 Beiträge: siehe [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Lizenz
+
+[Mozilla Public License 2.0](LICENSE). Geänderte Dateien müssen bei Weitergabe wieder unter MPL-2.0 offengelegt werden; eigener Code daneben darf unter beliebiger Lizenz stehen.
+
+Die Software dient der Vorbemessung und ersetzt keine prüffähige Statik. Die Verantwortung für die Ergebnisse liegt beim Anwender; eine Haftung ist ausgeschlossen (siehe Abschnitte 6 und 7 der Lizenz).

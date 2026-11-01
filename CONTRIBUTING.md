@@ -95,7 +95,6 @@ Werte, die nur aus diesem Programm selbst stammen, gelten nicht als Quelle.
 
 ## Lizenz
 
-- Bibliotheken unter `packages/*`: Apache-2.0
-- Apps unter `apps/*`: AGPL-3.0
+Das gesamte Repository steht unter der [Mozilla Public License 2.0](LICENSE).
 
-Mit deinem Beitrag stimmst du zu, dass er unter der Lizenz des jeweiligen Pakets veröffentlicht wird.
+Mit deinem Beitrag stimmst du zu, dass er unter dieser Lizenz veröffentlicht wird.
