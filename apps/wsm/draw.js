@@ -90,7 +90,7 @@ export function drawSystem(m, res, { layers = {}, highlight = null } = {}) {
 
   // Bemaßung
   const yb = -d.p(layers.sole !== false ? 34 : 10);
-  d.dim([0, 0], [g.xFb, 0], 'h', yb, cm(g.bt));
+  if (g.bt > 1e-6) d.dim([0, 0], [g.xFb, 0], 'h', yb, cm(g.bt));
   d.dim([g.xFb, 0], [g.xBb, 0], 'h', yb, cm(g.dwu));
   d.dim([g.xBb, 0], [g.B, 0], 'h', yb, cm(g.bh));
   d.dim([0, 0], [g.B, 0], 'h', yb - d.p(7), cm(g.B));
@@ -116,42 +116,62 @@ export function drawRebar(m, res, { highlight = null } = {}) {
   const rDot = (id) => Math.max(pos[id].phi / 2000, d.p(0.35));
   for (const p of dots) d.circle([p.x, p.y], rDot(p.id), { layer: 'BEWEHRUNG', cls: `dot pos-${p.id}`, data: p.id });
 
-  // Positionsfahnen: Ø / s – Pos
-  const flag = (id, at, to, anchor = 'start') => {
-    const p = pos[id];
-    d.line(at, to, { layer: 'TEXT', cls: 'leader' });
-    d.circle(at, d.p(0.4), { layer: 'TEXT', cls: 'leader-dot' });
-    d.text([to[0] + (anchor === 'end' ? -d.p(0.8) : d.p(0.8)), to[1] + d.p(0.5)], `Ø${p.phi} / ${fmt(p.s / 10, 1).replace(',0', '')} – Pos ${id}`, { layer: 'TEXT', cls: `flag pos-${id}`, anchor, data: id });
-  };
-  const at = (id, t = 0.5) => { const b = bars.find((x) => x.id === id); const i = Math.min(b.pts.length - 2, Math.floor(t * (b.pts.length - 1))); const a = b.pts[i], c = b.pts[i + 1]; return [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2]; };
-  const xr = g.B + d.p(14), xl = -d.p(14);
-  const b1 = bars.find((x) => x.id === '1');
-  flag('1', b1.pts[3] ? [(b1.pts[2][0] + b1.pts[3][0]) / 2, (b1.pts[2][1] + b1.pts[3][1]) / 2] : at('1'), [xr, g.dF + g.hw * 0.25]);
-  if (pos['2'] && bars.find((x) => x.id === '2')) flag('2', at('2'), [xr, g.dF + g.hw * 0.6]);
-  const b3 = bars.find((x) => x.id === '3');
-  flag('3', [(b3.pts[2][0] + b3.pts[3][0]) / 2, g.dF + g.hw * 0.55], [xl, g.dF + g.hw * 0.55], 'end');
-  const d4 = dots.filter((x) => x.id === '4');
-  if (d4.length) { const p4 = d4[Math.floor(d4.length * 0.4) | 1] ?? d4[1]; flag('4', [p4.x, p4.y], [xl, g.dF + g.hw * 0.8], 'end'); }
-  flag('5', [g.xBb + g.bh * 0.6, bars.find((x) => x.id === '5').pts[0][1]], [xr, g.dF + d.p(8)]);
-  flag('6', [g.bt * 0.4 + 0.05, bars.find((x) => x.id === '6').pts[0][1]], [xl, -d.p(6)], 'end');
-  const d7 = dots.filter((x) => x.id === '7');
-  if (d7.length) flag('7', [d7[2]?.x ?? d7[0].x, d7[2]?.y ?? d7[0].y], [xl, d.p(3)], 'end');
-  const b8 = bars.find((x) => x.id === '8');
-  flag('8', [(b8.pts[1][0] + b8.pts[2][0]) / 2, b8.pts[1][1]], [g.xBt + d.p(10), g.H + d.p(8)]);
-  const b9 = bars.find((x) => x.id === '9');
-  flag('9', [b9.pts[1][0], (b9.pts[1][1] + b9.pts[2][1]) / 2], [xl, g.dF / 2 - d.p(3)], 'end');
+  // Positionsfahnen: Ankerpunkt am Stab, Beschriftung in einer Spalte links bzw. rechts
+  const bar = (id) => bars.find((x) => x.id === id && !x.copy);
+  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const onSeg = (a, b, y) => [a[0] + ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]), y];
+  const flags = [];
+  const add = (id, at, side) => { if (pos[id] && at) flags.push({ id, at, side }); };
+  const b1 = bar('1'), b2 = bar('2'), b3 = bar('3'), b5 = bar('5'), b6 = bar('6'), b8 = bar('8'), b9 = bar('9');
+  add('1', b1 && onSeg(b1.pts[2], b1.pts[3], g.dF + (b1.pts[3][1] - g.dF) * 0.55), 'R');
+  add('2', b2 && onSeg(b2.pts[0], b2.pts[1], g.dF + g.hw * 0.62), 'R');
+  add('8', b8 && mid(b8.pts[1], b8.pts[2]), 'R');
+  add('5', b5 && [g.xBb + g.bh * 0.55, b5.pts[0][1]], 'R');
+  add('3', b3 && onSeg(b3.pts[2], b3.pts[3], g.dF + g.hw * 0.4), 'L');
+  const d4 = dots.filter((x) => x.id === '4' && x.x < g.xFb + g.dwu / 2);
+  if (d4.length) { const p4 = d4[Math.round((d4.length - 1) * 0.75)]; add('4', [p4.x, p4.y], 'L'); }
+  const d7 = dots.filter((x) => x.id === '7' && x.y > g.dF / 2);
+  if (d7.length) { const p7 = d7[Math.min(1, d7.length - 1)]; add('7', [p7.x, p7.y], 'L'); }
+  add('9', b9 && mid(b9.pts[1], b9.pts[2]), 'L');
+  add('6', b6 && [Math.max(b6.pts[0][0] + d.p(4), g.bt * 0.5), b6.pts[0][1]], 'L');
+
+  const rC = d.p(2.1), gapY = d.p(6.5), elbow = d.p(5);
+  const label = (id) => { const p = pos[id]; return `Ø${p.phi} / ${fmt(p.s / 10, 1).replace(',0', '')}`; };
+  const textW = (s, size = 2.5) => d.p(size) * 0.6 * s.length;
+  const xl = Math.min(0, g.xFb - d.p(4)) - d.p(16);
+  const xr = g.B + d.p(16);
+  for (const side of ['L', 'R']) {
+    const col = flags.filter((f) => f.side === side).sort((a, b) => b.at[1] - a.at[1]);
+    // von oben nach unten mit Mindestabstand verteilen, danach Gruppe mittig auf die Ankerpunkte zurückschieben
+    const ys = [];
+    for (const f of col) ys.push(ys.length ? Math.min(f.at[1], ys.at(-1) - gapY) : f.at[1]);
+    const shift = col.reduce((s, f, i) => s + f.at[1] - ys[i], 0) / (col.length || 1);
+    col.forEach((f, i) => { f.y = ys[i] + Math.max(0, shift); });
+    for (const f of col) {
+      const sgn = side === 'L' ? -1 : 1, x0 = side === 'L' ? xl : xr;
+      const cx = x0 + sgn * rC;
+      d.poly([f.at, [x0 - sgn * elbow, f.y], [x0, f.y]], { layer: 'TEXT', cls: 'leader' });
+      d.circle(f.at, d.p(0.45), { layer: 'TEXT', cls: 'leader-dot' });
+      d.circle([cx, f.y], rC, { layer: 'TEXT', cls: `pos-circle pos-${f.id}`, data: f.id });
+      d.text([cx, f.y - d.p(0.9)], f.id, { layer: 'TEXT', cls: `pos-no pos-${f.id}`, anchor: 'middle', size: 2.6, data: f.id });
+      d.text([x0 + sgn * (2 * rC + d.p(1.2)), f.y - d.p(0.9)], label(f.id), { layer: 'TEXT', cls: `flag pos-${f.id}`, anchor: side === 'L' ? 'end' : 'start', data: f.id });
+    }
+  }
+  const flagW = Math.max(0, ...flags.filter((f) => f.side === 'R').map((f) => 2 * rC + d.p(1.2) + textW(label(f.id))));
 
   // Bemaßung
-  d.dim([0, 0], [g.xFb, 0], 'h', -d.p(14), cm(g.bt));
+  if (g.bt > 1e-6) d.dim([0, 0], [g.xFb, 0], 'h', -d.p(14), cm(g.bt));
   d.dim([g.xFb, 0], [g.xBb, 0], 'h', -d.p(14), cm(g.dwu));
   d.dim([g.xBb, 0], [g.B, 0], 'h', -d.p(14), cm(g.bh));
   d.dim([0, 0], [g.B, 0], 'h', -d.p(21), cm(g.B));
-  d.dim([g.xFt, g.H], [g.xBt, g.H], 'h', g.H + d.p(16), cm(g.dwo));
-  d.dim([g.B, 0], [g.B, g.dF], 'v', g.B + d.p(30), cm(g.dF));
-  d.dim([g.B, g.dF], [g.B, g.H], 'v', g.B + d.p(30), cm(g.hw));
+  d.dim([g.xFt, g.H], [g.xBt, g.H], 'h', g.H + d.p(10), cm(g.dwo));
+  const xv = xr + flagW + d.p(8);
+  d.dim([g.B, 0], [g.B, g.dF], 'v', xv, cm(g.dF));
+  d.dim([g.B, g.dF], [g.B, g.H], 'v', xv, cm(g.hw));
+  d.dim([g.B, 0], [g.B, g.H], 'v', xv + d.p(7), cm(g.H));
   if (pos['2']) d.dim([g.xBb, g.dF], [g.xBb, g.dF + pos['1'].l0], 'v', g.xBb + d.p(5), `l₀ = ${cm(pos['1'].l0)}`);
-  d.text([0, g.H + d.p(16)], `Bewehrungsskizze M 1:${m.display.scale}`, { layer: 'TEXT', cls: 'title', size: 3.5 });
-  d.text([0, g.H + d.p(11)], `${m.rc.concrete} · B500B · c_nom = ${m.rc.cWall}/${m.rc.cBot}/${m.rc.cTop} mm`, { layer: 'TEXT', cls: 'subtitle', size: 2.2 });
+  d.text([0, -d.p(32)], `Bewehrungsskizze M 1:${m.display.scale}`, { layer: 'TEXT', cls: 'title', size: 3.5 });
+  d.text([0, -d.p(37)], `${m.rc.concrete} · B500B · c_nom = ${m.rc.cWall}/${m.rc.cBot}/${m.rc.cTop} mm`, { layer: 'TEXT', cls: 'subtitle', size: 2.2 });
 
   const svg = d.toSVG({ cls: `drawing rebar${highlight ? ' hl-' + highlight : ''}` });
   return { svg, drawing: d };

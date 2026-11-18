@@ -211,6 +211,9 @@ svg.drawing .dot { fill: var(--dw-rebar); stroke: none; }
 svg.drawing .leader { stroke: var(--text-3); stroke-width: 0.6px; }
 svg.drawing .leader-dot { fill: var(--text-3); stroke: none; }
 svg.drawing text.flag { fill: var(--text); font-weight: 500; cursor: pointer; }
+svg.drawing .pos-circle { fill: var(--dw-paper); stroke: var(--text); stroke-width: 1px; }
+svg.drawing text.pos-no { fill: var(--text); font-weight: 600; }
+svg.drawing .pos-circle.sel { stroke: var(--dw-rebar); stroke-width: 2px !important; }
 svg.drawing text.title { fill: var(--text); font-family: var(--font); font-weight: 600; }
 svg.drawing text.subtitle { fill: var(--text-3); }
 svg.drawing [data-ref] { cursor: pointer; }
