@@ -121,12 +121,14 @@ export function drawRebar(m, res, { highlight = null } = {}) {
   const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
   const onSeg = (a, b, y) => [a[0] + ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]), y];
   const flags = [];
-  const add = (id, at, side) => { if (pos[id] && at) flags.push({ id, at, side }); };
+  // ly: gewünschte Höhe der Beschriftung, wenn eine waagerechte Führungslinie auf Höhe des Ankers
+  // auf einer Bauteil- oder Geländekante liegen würde; die Linie knickt dann unter 45° vom Stab ab
+  const add = (id, at, side, ly) => { if (pos[id] && at) flags.push({ id, at, side, ly }); };
   const b1 = bar('1'), b2 = bar('2'), b3 = bar('3'), b5 = bar('5'), b6 = bar('6'), b8 = bar('8'), b9 = bar('9');
   add('1', b1 && onSeg(b1.pts[2], b1.pts[3], g.dF + (b1.pts[3][1] - g.dF) * 0.55), 'R');
   add('2', b2 && onSeg(b2.pts[0], b2.pts[1], g.dF + g.hw * 0.62), 'R');
-  add('8', b8 && mid(b8.pts[1], b8.pts[2]), 'R');
-  add('5', b5 && [g.xBb + g.bh * 0.55, b5.pts[0][1]], 'R');
+  add('8', b8 && mid(b8.pts[1], b8.pts[2]), 'R', g.H + d.p(6));
+  add('5', b5 && [g.xBb + g.bh * 0.55, b5.pts[0][1]], 'R', g.dF + d.p(5));
   add('3', b3 && onSeg(b3.pts[2], b3.pts[3], g.dF + g.hw * 0.4), 'L');
   const d4 = dots.filter((x) => x.id === '4' && x.x < g.xFb + g.dwu / 2);
   if (d4.length) { const p4 = d4[Math.round((d4.length - 1) * 0.75)]; add('4', [p4.x, p4.y], 'L'); }
@@ -141,16 +143,19 @@ export function drawRebar(m, res, { highlight = null } = {}) {
   const xl = Math.min(0, g.xFb - d.p(4)) - d.p(16);
   const xr = g.B + d.p(16);
   for (const side of ['L', 'R']) {
-    const col = flags.filter((f) => f.side === side).sort((a, b) => b.at[1] - a.at[1]);
-    // von oben nach unten mit Mindestabstand verteilen, danach Gruppe mittig auf die Ankerpunkte zurückschieben
+    const ty = (f) => f.ly ?? f.at[1];
+    const col = flags.filter((f) => f.side === side).sort((a, b) => ty(b) - ty(a));
+    // von oben nach unten mit Mindestabstand verteilen, danach Gruppe mittig auf die Zielhöhen zurückschieben
     const ys = [];
-    for (const f of col) ys.push(ys.length ? Math.min(f.at[1], ys.at(-1) - gapY) : f.at[1]);
-    const shift = col.reduce((s, f, i) => s + f.at[1] - ys[i], 0) / (col.length || 1);
+    for (const f of col) ys.push(ys.length ? Math.min(ty(f), ys.at(-1) - gapY) : ty(f));
+    const shift = col.reduce((s, f, i) => s + ty(f) - ys[i], 0) / (col.length || 1);
     col.forEach((f, i) => { f.y = ys[i] + Math.max(0, shift); });
     for (const f of col) {
       const sgn = side === 'L' ? -1 : 1, x0 = side === 'L' ? xl : xr;
       const cx = x0 + sgn * rC;
-      d.poly([f.at, [x0 - sgn * elbow, f.y], [x0, f.y]], { layer: 'TEXT', cls: 'leader' });
+      const kx = f.at[0] + sgn * Math.abs(f.y - f.at[1]);
+      const knee = f.ly != null && sgn * (x0 - sgn * elbow - kx) > 0 ? [kx, f.y] : [x0 - sgn * elbow, f.y];
+      d.poly([f.at, knee, [x0, f.y]], { layer: 'TEXT', cls: 'leader' });
       d.circle(f.at, d.p(0.45), { layer: 'TEXT', cls: 'leader-dot' });
       d.circle([cx, f.y], rC, { layer: 'TEXT', cls: `pos-circle pos-${f.id}`, data: f.id });
       d.text([cx, f.y - d.p(0.9)], f.id, { layer: 'TEXT', cls: `pos-no pos-${f.id}`, anchor: 'middle', size: 2.6, data: f.id });
